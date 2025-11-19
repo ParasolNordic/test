@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cloudflare Workers AI - Testaaja</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            max-width: 600px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 2em;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 0.95em;
+        }
+
+        .info-box {
+            background: #e8f4fd;
+            border-left: 4px solid #0066cc;
+            padding: 15px;
+            margin-bottom: 30px;
+            border-radius: 6px;
+        }
+
+        .info-box strong {
+            color: #0066cc;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .hint {
+            color: #888;
+            font-size: 0.85em;
+            margin-top: 5px;
+        }
+
+        .test-button {
+            width: 100%;
+            padding: 14px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+
+        .test-button:hover:not(:disabled) {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .test-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .status-box {
+            margin-top: 30px;
+            padding: 20px;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .status-box.show {
+            display: block;
+        }
+
+        .status-box.testing {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+        }
+
+        .status-box.success {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+        }
+
+        .status-box.error {
+            background: #f8d7da;
+            border-left: 4px solid #dc3545;
+        }
+
+        .status-title {
+            font-weight: 700;
+            font-size: 1.1em;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-message {
+            color: #333;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .test-details {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        .detail-row {
+            margin: 8px 0;
+            display: flex;
+            gap: 10px;
+        }
+
+        .detail-label {
+            font-weight: 600;
+            color: #555;
+            min-width: 120px;
+        }
+
+        .detail-value {
+            color: #333;
+            word-break: break-all;
+        }
+
+        .llm-response {
+            background: #e8f4fd;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 15px;
+            border-left: 4px solid #0066cc;
+        }
+
+        .llm-response-title {
+            font-weight: 700;
+            color: #0066cc;
+            margin-bottom: 10px;
+        }
+
+        .llm-response-text {
+            color: #333;
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+
+        .steps {
+            margin-top: 20px;
+        }
+
+        .step {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 6px;
+            background: #f8f9fa;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .step-number {
+            background: #667eea;
+            color: white;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.9em;
+        }
+
+        .step.complete .step-number {
+            background: #28a745;
+        }
+
+        .step.error .step-number {
+            background: #dc3545;
+        }
+
+        .step.active {
+            background: #fff3cd;
+            border-left: 3px solid #ffc107;
+        }
+
+        .check {
+            color: #28a745;
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+
+        .cross {
+            color: #dc3545;
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Workers AI Testaaja</h1>
+        <p class="subtitle">Testaa Worker-pohjaista AI-yhteyttä</p>
+
+        <div class="info-box">
+            <strong>✅ Worker URL on valmiina!</strong><br>
+            Klikkaa "Testaa yhteys" -nappia aloittaaksesi testauksen.
+        </div>
+
+        <div class="form-group">
+            <label for="workerUrl">Worker URL</label>
+            <input 
+                type="text" 
+                id="workerUrl" 
+                value="https://ai-proxy.arkisto-kaksi.workers.dev"
+                readonly
+            >
+            <div class="hint">Cloudflare Worker -osoite (voit muuttaa tätä tarvittaessa)</div>
+        </div>
+
+        <button class="test-button" onclick="testConnection()">
+            🧪 Testaa yhteys
+        </button>
+
+        <div id="statusBox" class="status-box">
+            <div class="status-title">
+                <span id="statusIcon"></span>
+                <span id="statusTitle"></span>
+            </div>
+            <div id="statusMessage" class="status-message"></div>
+            <div id="statusDetails"></div>
+        </div>
+    </div>
+
+    <script>
+        const workerUrlInput = document.getElementById('workerUrl');
+        const testButton = document.querySelector('.test-button');
+        const statusBox = document.getElementById('statusBox');
+        const statusIcon = document.getElementById('statusIcon');
+        const statusTitle = document.getElementById('statusTitle');
+        const statusMessage = document.getElementById('statusMessage');
+        const statusDetails = document.getElementById('statusDetails');
+
+        // Enable editing the URL if needed
+        workerUrlInput.addEventListener('dblclick', () => {
+            workerUrlInput.removeAttribute('readonly');
+            workerUrlInput.focus();
+        });
+
+        async function testConnection() {
+            const workerUrl = workerUrlInput.value.trim();
+
+            if (!workerUrl || workerUrl === 'https://') {
+                alert('Syötä Worker URL!');
+                return;
+            }
+
+            testButton.disabled = true;
+
+            // Show testing status
+            statusBox.className = 'status-box show testing';
+            statusIcon.innerHTML = '<div class="loader"></div>';
+            statusTitle.textContent = 'Testataan yhteyttä...';
+            statusMessage.textContent = 'Odota hetki, lähetetään testikysely Cloudflare Workerille.';
+            statusDetails.innerHTML = '';
+
+            // Create steps
+            const stepsHTML = `
+                <div class="steps">
+                    <div class="step" id="step1">
+                        <div class="step-number">1</div>
+                        <div>Tarkistetaan Worker URL...</div>
+                    </div>
+                    <div class="step" id="step2">
+                        <div class="step-number">2</div>
+                        <div>Lähetetään testikysely Workerille...</div>
+                    </div>
+                    <div class="step" id="step3">
+                        <div class="step-number">3</div>
+                        <div>Odotetaan vastausta LLM:ltä...</div>
+                    </div>
+                    <div class="step" id="step4">
+                        <div class="step-number">4</div>
+                        <div>Analysoidaan vastaus...</div>
+                    </div>
+                </div>
+            `;
+            statusDetails.innerHTML = stepsHTML;
+
+            try {
+                // Step 1: Validate URL
+                document.getElementById('step1').classList.add('active');
+                await sleep(500);
+
+                if (!workerUrl.startsWith('https://')) {
+                    throw new Error('Worker URL:n pitää alkaa https://');
+                }
+
+                if (!workerUrl.includes('workers.dev') && !workerUrl.includes('pages.dev')) {
+                    throw new Error('URL ei vaikuta Cloudflare Worker -osoitteelta');
+                }
+
+                document.getElementById('step1').classList.remove('active');
+                document.getElementById('step1').classList.add('complete');
+                document.getElementById('step1').innerHTML += ' <span class="check">✓</span>';
+
+                // Step 2: Send request
+                document.getElementById('step2').classList.add('active');
+                statusMessage.textContent = 'Lähetetään kysely: "Mikä on 2+2?" Workers AI:lle...';
+
+                const startTime = Date.now();
+                const response = await fetch(workerUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        messages: [
+                            { 
+                                role: 'system', 
+                                content: 'Olet ystävällinen avustaja. Vastaa lyhyesti suomeksi.' 
+                            },
+                            { 
+                                role: 'user', 
+                                content: 'Mikä on 2+2? Vastaa vain lyhyesti.' 
+                            }
+                        ]
+                    })
+                });
+
+                const responseTime = Date.now() - startTime;
+
+                document.getElementById('step2').classList.remove('active');
+                document.getElementById('step2').classList.add('complete');
+                document.getElementById('step2').innerHTML += ' <span class="check">✓</span>';
+
+                // Step 3: Check response
+                document.getElementById('step3').classList.add('active');
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(`Worker virhe (${response.status}): ${errorData.error || response.statusText}`);
+                }
+
+                document.getElementById('step3').classList.remove('active');
+                document.getElementById('step3').classList.add('complete');
+                document.getElementById('step3').innerHTML += ' <span class="check">✓</span>';
+
+                // Step 4: Parse response
+                document.getElementById('step4').classList.add('active');
+
+                const data = await response.json();
+                console.log('Full Worker Response:', data);
+
+                const llmResponse = data.result?.response || 'Ei vastausta';
+
+                document.getElementById('step4').classList.remove('active');
+                document.getElementById('step4').classList.add('complete');
+                document.getElementById('step4').innerHTML += ' <span class="check">✓</span>';
+
+                // Success!
+                await sleep(300);
+                showSuccess(workerUrl, responseTime, llmResponse, data);
+
+            } catch (error) {
+                console.error('Test error:', error);
+                showError(error.message);
+            } finally {
+                testButton.disabled = false;
+            }
+        }
+
+        function showSuccess(workerUrl, responseTime, llmResponse, fullData) {
+            statusBox.className = 'status-box show success';
+            statusIcon.textContent = '✅';
+            statusTitle.textContent = 'Yhteys toimii!';
+            statusMessage.textContent = 'Cloudflare Worker ja Workers AI vastaavat onnistuneesti!';
+
+            const detailsHTML = `
+                <div class="test-details">
+                    <div class="detail-row">
+                        <span class="detail-label">Worker URL:</span>
+                        <span class="detail-value">${workerUrl}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Vasteaika:</span>
+                        <span class="detail-value">${responseTime}ms</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Malli:</span>
+                        <span class="detail-value">Llama 3.1 8B Instruct</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Tila:</span>
+                        <span class="detail-value" style="color: #28a745; font-weight: bold;">TOIMII ✓</span>
+                    </div>
+                </div>
+
+                <div class="llm-response">
+                    <div class="llm-response-title">🤖 LLM:n vastaus kysymykseen "Mikä on 2+2?":</div>
+                    <div class="llm-response-text">${llmResponse}</div>
+                </div>
+            `;
+
+            statusDetails.innerHTML += detailsHTML;
+        }
+
+        function showError(errorMessage) {
+            // Mark current active step as error
+            const activeStep = document.querySelector('.step.active');
+            if (activeStep) {
+                activeStep.classList.remove('active');
+                activeStep.classList.add('error');
+                activeStep.innerHTML += ' <span class="cross">✗</span>';
+            }
+
+            statusBox.className = 'status-box show error';
+            statusIcon.textContent = '❌';
+            statusTitle.textContent = 'Yhteys epäonnistui';
+            statusMessage.textContent = 'Cloudflare Worker -yhteyden testaus epäonnistui.';
+
+            let troubleshooting = '';
+
+            if (errorMessage.includes('Worker URL')) {
+                troubleshooting = `
+                    <p><strong>Ongelma:</strong> Worker URL on virheellinen.</p>
+                    <ul>
+                        <li>Tarkista että URL alkaa https://</li>
+                        <li>URL:n pitää sisältää workers.dev tai pages.dev</li>
+                        <li>Kopioi URL suoraan Workers & Pages -sivulta</li>
+                    </ul>
+                `;
+            } else if (errorMessage.includes('404')) {
+                troubleshooting = `
+                    <p><strong>Ongelma:</strong> Workeria ei löydy.</p>
+                    <ul>
+                        <li>Varmista että Worker on julkaistu (deployed)</li>
+                        <li>Tarkista URL:n oikeinkirjoitus</li>
+                        <li>Kokeile avata URL suoraan selaimessa</li>
+                    </ul>
+                `;
+            } else if (errorMessage.includes('500')) {
+                troubleshooting = `
+                    <p><strong>Ongelma:</strong> Worker-virhe.</p>
+                    <ul>
+                        <li>Tarkista Worker-koodi Cloudflare dashboardista</li>
+                        <li>Varmista että AI binding on konfigurattu</li>
+                        <li>Katso Worker-logit mahdollisten virheiden varalta</li>
+                    </ul>
+                `;
+            } else if (errorMessage.includes('CORS') || errorMessage.includes('blocked')) {
+                troubleshooting = `
+                    <p><strong>Ongelma:</strong> CORS-virhe.</p>
+                    <ul>
+                        <li>Varmista että Worker palauttaa CORS-headerit</li>
+                        <li>Tarkista että Access-Control-Allow-Origin on asetettu</li>
+                    </ul>
+                `;
+            } else if (errorMessage.includes('AI binding')) {
+                troubleshooting = `
+                    <p><strong>Ongelma:</strong> Workers AI binding puuttuu.</p>
+                    <ul>
+                        <li>Mene Cloudflare Dashboardiin</li>
+                        <li>Valitse ai-proxy Worker</li>
+                        <li>Klikkaa "Bindings" -välilehteä</li>
+                        <li>Lisää Workers AI binding nimellä "AI"</li>
+                        <li>Tallenna ja deployaa Worker uudelleen</li>
+                    </ul>
+                `;
+            } else {
+                troubleshooting = `
+                    <p><strong>Ongelma:</strong> ${errorMessage}</p>
+                    <ul>
+                        <li>Tarkista internet-yhteys</li>
+                        <li>Varmista että Worker on julkaistu</li>
+                        <li>Varmista että Workers AI binding on lisätty</li>
+                        <li>Kokeile uudelleen hetken kuluttua</li>
+                    </ul>
+                `;
+            }
+
+            const errorHTML = `
+                <div class="test-details">
+                    <div class="detail-row">
+                        <span class="detail-label">Virhe:</span>
+                        <span class="detail-value" style="color: #dc3545;">${errorMessage}</span>
+                    </div>
+                </div>
+                <div style="margin-top: 20px; color: #333; line-height: 1.6;">
+                    ${troubleshooting}
+                </div>
+            `;
+
+            statusDetails.innerHTML += errorHTML;
+        }
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        // Optional: Auto-run test on page load
+        // Uncomment the line below if you want the test to run automatically
+        // window.addEventListener('load', () => setTimeout(testConnection, 500));
+    </script>
+</body>
+</html>
