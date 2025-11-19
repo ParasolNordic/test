@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mainekriisipeli - Simulaatioharjoitus</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Setup Screen -->
+        <div id="setup-screen" class="screen active">
+            <div class="container">
+                <h1>🎯 Mainekriisipeli</h1>
+                <p class="subtitle">Johtoryhmän simulaatioharjoitus</p>
+                
+                <div class="setup-form">
+                    <h2>Pelin asetukset</h2>
+                    
+                    <div class="form-group">
+                        <label for="company-name">Yrityksen nimi (keksitty):</label>
+                        <input type="text" id="company-name" placeholder="Esim. TechCorp Oy" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="participant-count">Osallistujien määrä (2-12):</label>
+                        <input type="number" id="participant-count" min="2" max="12" value="4" required>
+                    </div>
+                    
+                    <div id="participants-container"></div>
+                    
+                    <div class="form-group">
+                        <label for="worker-url">Cloudflare Worker URL:</label>
+                        <input type="text" id="worker-url" placeholder="https://ai-proxy.your-subdomain.workers.dev" value="https://ai-proxy.arkisto-kaksi.workers.dev" required>
+                        <small>Cloudflare Worker -osoite joka hoitaa AI-kutsut</small>
+                    </div>
+                    
+                    <div class="info-note">
+                        <strong>💡 Huom:</strong> Tämä versio käyttää Cloudflare Workeria AI-kutsuihin. 
+                        Varmista että Worker on konfiguroitu oikein ennen aloittamista.
+                        <a href="#" id="test-connection-link">Testaa yhteys</a>
+                    </div>
+                    
+                    <button id="start-game" class="btn-primary">Aloita simulaatio</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Game Screen -->
+        <div id="game-screen" class="screen">
+            <div class="game-header">
+                <div class="company-info">
+                    <h2 id="game-company-name"></h2>
+                    <span class="crisis-indicator">🔴 KRIISITILA AKTIIVINEN</span>
+                </div>
+                <div class="timer-container">
+                    <span class="timer-label">Pelin kesto:</span>
+                    <span id="game-timer">00:00</span>
+                </div>
+            </div>
+            
+            <div class="game-content">
+                <!-- Situation Room -->
+                <div class="situation-room">
+                    <div class="crisis-panel">
+                        <h3>📋 Kriisitilanne</h3>
+                        <div id="crisis-description" class="crisis-box"></div>
+                    </div>
+                    
+                    <div class="metrics-panel">
+                        <h3>📊 Tilannekuva</h3>
+                        <div class="metrics-grid">
+                            <div class="metric">
+                                <span class="metric-label">Maine</span>
+                                <div class="metric-bar">
+                                    <div id="reputation-bar" class="metric-fill" style="width: 70%"></div>
+                                </div>
+                                <span id="reputation-value" class="metric-value">70%</span>
+                            </div>
+                            <div class="metric">
+                                <span class="metric-label">Sidosryhmäluottamus</span>
+                                <div class="metric-bar">
+                                    <div id="trust-bar" class="metric-fill" style="width: 60%"></div>
+                                </div>
+                                <span id="trust-value" class="metric-value">60%</span>
+                            </div>
+                            <div class="metric">
+                                <span class="metric-label">Kriisitaso</span>
+                                <div class="metric-bar danger">
+                                    <div id="crisis-bar" class="metric-fill" style="width: 80%"></div>
+                                </div>
+                                <span id="crisis-value" class="metric-value">Korkea</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Tasks Panel -->
+                <div class="tasks-panel">
+                    <h3>⚡ Aktiiviset tehtävät</h3>
+                    <div id="active-tasks" class="tasks-list"></div>
+                </div>
+                
+                <!-- Communication Panel -->
+                <div class="communication-panel">
+                    <div class="tabs">
+                        <button class="tab active" data-tab="npc">💬 Sidosryhmät</button>
+                        <button class="tab" data-tab="team">👥 Johtoryhmä</button>
+                        <button class="tab" data-tab="documents">📄 Dokumentit</button>
+                    </div>
+                    
+                    <div id="npc-tab" class="tab-content active">
+                        <div id="npc-messages" class="messages-container"></div>
+                    </div>
+                    
+                    <div id="team-tab" class="tab-content">
+                        <div id="team-chat" class="messages-container"></div>
+                        <div class="chat-input">
+                            <input type="text" id="team-message-input" placeholder="Viesti johtoryhmälle...">
+                            <button id="send-team-message" class="btn-secondary">Lähetä</button>
+                        </div>
+                    </div>
+                    
+                    <div id="documents-tab" class="tab-content">
+                        <div id="documents-list" class="documents-container"></div>
+                        <button id="create-document-btn" class="btn-secondary">+ Luo uusi dokumentti</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="game-actions">
+                <button id="end-game" class="btn-danger">Päätä simulaatio</button>
+            </div>
+        </div>
+        
+        <!-- Results Screen -->
+        <div id="results-screen" class="screen">
+            <div class="container">
+                <h1>📊 Simulaation yhteenveto</h1>
+                <div id="results-content"></div>
+                <button id="restart-game" class="btn-primary">Aloita uusi simulaatio</button>
+            </div>
+        </div>
+        
+        <!-- Modals -->
+        <div id="task-modal" class="modal">
+            <div class="modal-content">
+                <span class="modal-close">&times;</span>
+                <h2 id="task-modal-title"></h2>
+                <div id="task-modal-body"></div>
+                <div id="task-modal-actions"></div>
+            </div>
+        </div>
+        
+        <div id="document-modal" class="modal">
+            <div class="modal-content large">
+                <span class="modal-close">&times;</span>
+                <h2>Luo dokumentti</h2>
+                <div class="form-group">
+                    <label for="doc-type">Dokumenttityyppi:</label>
+                    <select id="doc-type">
+                        <option value="press-release">Lehdistötiedote</option>
+                        <option value="internal-memo">Sisäinen viesti</option>
+                        <option value="legal-brief">Juridinen riskinarvio</option>
+                        <option value="technical-report">Tekninen selvitys</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="doc-author">Laatija:</label>
+                    <select id="doc-author"></select>
+                </div>
+                <div class="form-group">
+                    <label for="doc-content">Sisältö:</label>
+                    <textarea id="doc-content" rows="10" placeholder="Kirjoita dokumentin sisältö..."></textarea>
+                </div>
+                <button id="submit-document" class="btn-primary">Julkaise dokumentti</button>
+            </div>
+        </div>
+
+        <!-- Connection Test Modal -->
+        <div id="test-modal" class="modal">
+            <div class="modal-content">
+                <span class="modal-close">&times;</span>
+                <h2>Testaa AI-yhteys</h2>
+                <div id="test-status"></div>
+                <button id="run-test" class="btn-primary">Testaa yhteys</button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="game.js"></script>
+</body>
+</html>
