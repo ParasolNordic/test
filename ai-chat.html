@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chat - Cloudflare Workers AI</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            width: 100%;
+            max-width: 800px;
+            height: 90vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 1.5em;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+
+        .setup-panel {
+            padding: 20px;
+            border-bottom: 1px solid #e0e0e0;
+            background: #f7fafc;
+        }
+
+        .setup-panel label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #4a5568;
+        }
+
+        .setup-panel input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .setup-panel input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .setup-panel small {
+            display: block;
+            margin-top: 5px;
+            color: #718096;
+            font-size: 0.85em;
+        }
+
+        .setup-panel.collapsed {
+            display: none;
+        }
+
+        .toggle-setup {
+            background: none;
+            border: none;
+            color: #667eea;
+            cursor: pointer;
+            padding: 10px;
+            font-size: 0.9em;
+            text-decoration: underline;
+        }
+
+        .chat-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .message {
+            display: flex;
+            gap: 12px;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.user {
+            flex-direction: row-reverse;
+        }
+
+        .message-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2em;
+            flex-shrink: 0;
+        }
+
+        .message.user .message-avatar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .message.assistant .message-avatar {
+            background: #e0e7ff;
+            color: #667eea;
+        }
+
+        .message-content {
+            background: #f7fafc;
+            padding: 12px 16px;
+            border-radius: 12px;
+            max-width: 70%;
+            line-height: 1.6;
+        }
+
+        .message.user .message-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .message.assistant .message-content {
+            background: #f7fafc;
+            color: #2d3748;
+        }
+
+        .message.error .message-content {
+            background: #fff5f5;
+            color: #c53030;
+            border: 1px solid #feb2b2;
+        }
+
+        .message-time {
+            font-size: 0.75em;
+            color: #a0aec0;
+            margin-top: 4px;
+        }
+
+        .typing-indicator {
+            display: none;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+        }
+
+        .typing-indicator.active {
+            display: flex;
+        }
+
+        .typing-dots {
+            display: flex;
+            gap: 4px;
+        }
+
+        .typing-dots span {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #cbd5e0;
+            animation: bounce 1.4s infinite ease-in-out;
+        }
+
+        .typing-dots span:nth-child(1) {
+            animation-delay: -0.32s;
+        }
+
+        .typing-dots span:nth-child(2) {
+            animation-delay: -0.16s;
+        }
+
+        @keyframes bounce {
+            0%, 80%, 100% {
+                transform: scale(0);
+            }
+            40% {
+                transform: scale(1);
+            }
+        }
+
+        .input-container {
+            padding: 20px;
+            border-top: 1px solid #e0e0e0;
+            background: white;
+        }
+
+        .input-wrapper {
+            display: flex;
+            gap: 10px;
+        }
+
+        .input-wrapper textarea {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 15px;
+            font-family: inherit;
+            resize: none;
+            min-height: 50px;
+            max-height: 150px;
+        }
+
+        .input-wrapper textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .input-wrapper button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 24px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .input-wrapper button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .input-wrapper button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .welcome-message {
+            text-align: center;
+            color: #718096;
+            padding: 40px 20px;
+        }
+
+        .welcome-message h2 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .welcome-message p {
+            margin: 10px 0;
+        }
+
+        .suggestions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        .suggestion-chip {
+            background: #edf2f7;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid #e2e8f0;
+        }
+
+        .suggestion-chip:hover {
+            background: #e0e7ff;
+            border-color: #667eea;
+            color: #667eea;
+        }
+
+        .clear-btn {
+            background: #f56565;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9em;
+            margin-top: 10px;
+        }
+
+        .clear-btn:hover {
+            background: #e53e3e;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                height: 100vh;
+                border-radius: 0;
+            }
+
+            .message-content {
+                max-width: 85%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 AI Chat</h1>
+            <p>Powered by Cloudflare Workers AI</p>
+        </div>
+
+        <div class="setup-panel" id="setup-panel">
+            <label for="worker-url">Worker URL:</label>
+            <input 
+                type="text" 
+                id="worker-url" 
+                placeholder="https://ai-proxy.your-subdomain.workers.dev"
+                value="https://ai-proxy.arkisto-kaksi.workers.dev"
+            >
+            <small>Cloudflare Worker -osoite joka hoitaa AI-kutsut</small>
+            <button class="toggle-setup" onclick="toggleSetup()">Piilota asetukset</button>
+            <button class="clear-btn" onclick="clearChat()">Tyhjennä keskustelu</button>
+        </div>
+
+        <div class="chat-container" id="chat-container">
+            <div class="welcome-message">
+                <h2>Tervetuloa AI Chattiin! 👋</h2>
+                <p>Kysy mitä tahansa, niin autan mielelläni.</p>
+                <div class="suggestions">
+                    <div class="suggestion-chip" onclick="sendSuggestion('Kerro vitsi')">Kerro vitsi 😄</div>
+                    <div class="suggestion-chip" onclick="sendSuggestion('Mitä sinä osaat?')">Mitä sinä osaat? 🤔</div>
+                    <div class="suggestion-chip" onclick="sendSuggestion('Auta minua oppimaan jotain uutta')">Opeta minulle 📚</div>
+                    <div class="suggestion-chip" onclick="sendSuggestion('Käännä tämä englanniksi: Hei maailma')">Käännä teksti 🌍</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="typing-indicator" id="typing-indicator">
+            <div class="message-avatar" style="background: #e0e7ff; color: #667eea;">🤖</div>
+            <div class="typing-dots">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </div>
+
+        <div class="input-container">
+            <div class="input-wrapper">
+                <textarea 
+                    id="user-input" 
+                    placeholder="Kirjoita viestisi tähän..."
+                    rows="1"
+                ></textarea>
+                <button id="send-btn" onclick="sendMessage()">Lähetä</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const chatContainer = document.getElementById('chat-container');
+        const userInput = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+        const typingIndicator = document.getElementById('typing-indicator');
+        const workerUrlInput = document.getElementById('worker-url');
+
+        // Conversation history
+        let conversationHistory = [];
+
+        // Auto-resize textarea
+        userInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+        });
+
+        // Send on Enter (Shift+Enter for new line)
+        userInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        function toggleSetup() {
+            const panel = document.getElementById('setup-panel');
+            const btn = panel.querySelector('.toggle-setup');
+            if (panel.classList.contains('collapsed')) {
+                panel.classList.remove('collapsed');
+                btn.textContent = 'Piilota asetukset';
+            } else {
+                panel.classList.add('collapsed');
+                btn.textContent = 'Näytä asetukset';
+            }
+        }
+
+        function clearChat() {
+            if (confirm('Haluatko tyhjentää koko keskustelun?')) {
+                conversationHistory = [];
+                chatContainer.innerHTML = `
+                    <div class="welcome-message">
+                        <h2>Keskustelu tyhjennetty! 🧹</h2>
+                        <p>Aloita uusi keskustelu kirjoittamalla viesti.</p>
+                    </div>
+                `;
+            }
+        }
+
+        function sendSuggestion(text) {
+            userInput.value = text;
+            sendMessage();
+        }
+
+        async function sendMessage() {
+            const message = userInput.value.trim();
+            if (!message) return;
+
+            const workerUrl = workerUrlInput.value.trim();
+            if (!workerUrl) {
+                alert('Syötä Worker URL ensin!');
+                return;
+            }
+
+            // Clear input
+            userInput.value = '';
+            userInput.style.height = 'auto';
+
+            // Remove welcome message if exists
+            const welcome = chatContainer.querySelector('.welcome-message');
+            if (welcome) welcome.remove();
+
+            // Add user message
+            addMessage(message, 'user');
+
+            // Disable input
+            sendBtn.disabled = true;
+            userInput.disabled = true;
+
+            // Show typing indicator
+            typingIndicator.classList.add('active');
+
+            // Add to conversation history
+            conversationHistory.push({
+                role: 'user',
+                content: message
+            });
+
+            try {
+                // Call AI
+                const response = await fetch(workerUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        messages: conversationHistory
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(`Worker-virhe (${response.status}): ${errorData.error || response.statusText}`);
+                }
+
+                const data = await response.json();
+                const aiResponse = data.result?.response || 'Ei vastausta';
+
+                // Add to conversation history
+                conversationHistory.push({
+                    role: 'assistant',
+                    content: aiResponse
+                });
+
+                // Add AI message
+                addMessage(aiResponse, 'assistant');
+
+            } catch (error) {
+                console.error('Error:', error);
+                addMessage(`Virhe: ${error.message}`, 'error');
+            } finally {
+                // Hide typing indicator
+                typingIndicator.classList.remove('active');
+
+                // Enable input
+                sendBtn.disabled = false;
+                userInput.disabled = false;
+                userInput.focus();
+            }
+        }
+
+        function addMessage(content, type) {
+            const messageEl = document.createElement('div');
+            messageEl.className = `message ${type}`;
+
+            const avatar = type === 'user' ? '👤' : '🤖';
+            const time = new Date().toLocaleTimeString('fi-FI', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            });
+
+            messageEl.innerHTML = `
+                <div class="message-avatar">${avatar}</div>
+                <div>
+                    <div class="message-content">${formatMessage(content)}</div>
+                    <div class="message-time">${time}</div>
+                </div>
+            `;
+
+            chatContainer.appendChild(messageEl);
+            messageEl.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }
+
+        function formatMessage(content) {
+            // Basic formatting: convert line breaks
+            return content
+                .replace(/\n/g, '<br>')
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>');
+        }
+
+        // Hide setup panel after first use
+        setTimeout(() => {
+            if (workerUrlInput.value) {
+                toggleSetup();
+            }
+        }, 2000);
+    </script>
+</body>
+</html>
